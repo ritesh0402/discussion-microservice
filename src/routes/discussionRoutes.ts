@@ -4,7 +4,7 @@ import { createDiscussion, updateDiscussion, deleteDiscussion, getDiscussionsByT
 import authMiddleware from '../middleware/auth';
 
 const router = express.Router();
-const upload = multer({ dest: 'uploads/' });
+const upload = multer();
 
 router.post('/', authMiddleware, upload.single('image'), createDiscussion);
 router.put('/:discussionId', authMiddleware, upload.single('image'), updateDiscussion);

@@ -16,17 +16,15 @@ exports.getDiscussionsByText = exports.getDiscussionsByTags = exports.deleteDisc
 const cloudinaryConfig_1 = __importDefault(require("../cloudinaryConfig"));
 const Discussion_1 = __importDefault(require("../models/Discussion"));
 const mongoose_1 = __importDefault(require("mongoose"));
-const multer_1 = __importDefault(require("multer"));
-const upload = (0, multer_1.default)({ dest: 'uploads/' });
+const streamifier_1 = __importDefault(require("streamifier"));
 const createDiscussion = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     try {
         const createdBy = new mongoose_1.default.Types.ObjectId(req.user); // Type assertion
         const { text, hashtags } = req.body;
         let image = '';
         if (req.file) {
-            const uploadedImage = yield cloudinaryConfig_1.default.uploader.upload(req.file.path, {
-                folder: 'discussions',
-            });
+            const bufferStream = streamifier_1.default.createReadStream(req.file.buffer); // Convert Buffer to ReadableStream
+            const uploadedImage = yield uploadToCloudinary(bufferStream);
             image = uploadedImage.secure_url;
         }
         const discussion = new Discussion_1.default({
@@ -50,9 +48,8 @@ const updateDiscussion = (req, res) => __awaiter(void 0, void 0, void 0, functio
     // Check if req.file exists to decide whether to update 'image' field
     if (req.file) {
         try {
-            const uploadedImage = yield cloudinaryConfig_1.default.uploader.upload(req.file.path, {
-                folder: 'discussions', // Optional folder in Cloudinary
-            });
+            const bufferStream = streamifier_1.default.createReadStream(req.file.buffer); // Convert Buffer to ReadableStream
+            const uploadedImage = yield uploadToCloudinary(bufferStream);
             updates.image = uploadedImage.secure_url;
             // No need to delete the temporary file uploaded by multer on Vercel
         }
@@ -72,6 +69,28 @@ const updateDiscussion = (req, res) => __awaiter(void 0, void 0, void 0, functio
     }
 });
 exports.updateDiscussion = updateDiscussion;
+function uploadToCloudinary(stream) {
+    return __awaiter(this, void 0, void 0, function* () {
+        return new Promise((resolve, reject) => {
+            const cloudStream = cloudinaryConfig_1.default.uploader.upload_stream({
+                folder: 'discussions', // Optional folder in Cloudinary
+            }, (error, result) => {
+                if (error) {
+                    reject(error);
+                }
+                else {
+                    if (result) {
+                        resolve(result);
+                    }
+                    else {
+                        reject(new Error('Upload result is undefined'));
+                    }
+                }
+            });
+            stream.pipe(cloudStream);
+        });
+    });
+}
 const deleteDiscussion = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { discussionId } = req.params;
     try {
