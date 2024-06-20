@@ -13,6 +13,7 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.getDiscussionsByText = exports.getDiscussionsByTags = exports.deleteDiscussion = exports.updateDiscussion = exports.createDiscussion = void 0;
+const cloudinaryConfig_1 = __importDefault(require("../cloudinaryConfig"));
 const Discussion_1 = __importDefault(require("../models/Discussion"));
 const mongoose_1 = __importDefault(require("mongoose"));
 const multer_1 = __importDefault(require("multer"));
@@ -21,7 +22,13 @@ const createDiscussion = (req, res) => __awaiter(void 0, void 0, void 0, functio
     try {
         const createdBy = new mongoose_1.default.Types.ObjectId(req.user); // Type assertion
         const { text, hashtags } = req.body;
-        const image = req.file ? req.file.path : null;
+        let image = '';
+        if (req.file) {
+            const uploadedImage = yield cloudinaryConfig_1.default.uploader.upload(req.file.path, {
+                folder: 'discussions',
+            });
+            image = uploadedImage.secure_url;
+        }
         const discussion = new Discussion_1.default({
             text,
             hashtags,
@@ -40,8 +47,18 @@ exports.createDiscussion = createDiscussion;
 const updateDiscussion = (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { discussionId } = req.params;
     const updates = req.body;
+    // Check if req.file exists to decide whether to update 'image' field
     if (req.file) {
-        updates.image = req.file.path;
+        try {
+            const uploadedImage = yield cloudinaryConfig_1.default.uploader.upload(req.file.path, {
+                folder: 'discussions', // Optional folder in Cloudinary
+            });
+            updates.image = uploadedImage.secure_url;
+            // No need to delete the temporary file uploaded by multer on Vercel
+        }
+        catch (err) {
+            return res.status(500).json({ error: err });
+        }
     }
     try {
         const updatedDiscussion = yield Discussion_1.default.findByIdAndUpdate(discussionId, updates, { new: true });

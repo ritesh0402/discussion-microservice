@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import cloudinary from '../cloudinaryConfig';
 import Discussion from '../models/Discussion';
 import mongoose from 'mongoose';
 import multer from 'multer';
@@ -13,7 +14,15 @@ export const createDiscussion = async (req: AuthenticatedRequest, res: Response)
    try {
       const createdBy = new mongoose.Types.ObjectId(req.user as string); // Type assertion
       const { text, hashtags } = req.body;
-      const image = req.file ? req.file.path : null;
+      let image = '';
+
+      if (req.file) {
+         const uploadedImage = await cloudinary.uploader.upload(req.file.path, {
+            folder: 'discussions',
+         });
+         image = uploadedImage.secure_url;
+      }
+
 
       const discussion = new Discussion({
          text,
@@ -33,9 +42,21 @@ export const createDiscussion = async (req: AuthenticatedRequest, res: Response)
 export const updateDiscussion = async (req: Request, res: Response) => {
    const { discussionId } = req.params;
    const updates = req.body;
+
+   // Check if req.file exists to decide whether to update 'image' field
    if (req.file) {
-      updates.image = req.file.path;
+      try {
+         const uploadedImage = await cloudinary.uploader.upload(req.file.path, {
+            folder: 'discussions', // Optional folder in Cloudinary
+         });
+         updates.image = uploadedImage.secure_url;
+
+         // No need to delete the temporary file uploaded by multer on Vercel
+      } catch (err) {
+         return res.status(500).json({ error: err });
+      }
    }
+
    try {
       const updatedDiscussion = await Discussion.findByIdAndUpdate(discussionId, updates, { new: true });
       if (!updatedDiscussion) {
