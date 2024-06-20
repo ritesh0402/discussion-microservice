@@ -6,7 +6,6 @@ import multer from 'multer';
 import streamifier from 'streamifier';
 import { UploadApiResponse } from 'cloudinary';
 
-const upload = multer({ dest: 'uploads/' });
 
 interface AuthenticatedRequest extends Request {
    user?: string | object; // Adjust the type based on your JWT payload
