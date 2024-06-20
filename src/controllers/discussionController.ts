@@ -3,6 +3,8 @@ import cloudinary from '../cloudinaryConfig';
 import Discussion from '../models/Discussion';
 import mongoose from 'mongoose';
 import multer from 'multer';
+import streamifier from 'streamifier';
+import { UploadApiResponse } from 'cloudinary';
 
 const upload = multer({ dest: 'uploads/' });
 
@@ -17,9 +19,8 @@ export const createDiscussion = async (req: AuthenticatedRequest, res: Response)
       let image = '';
 
       if (req.file) {
-         const uploadedImage = await cloudinary.uploader.upload(req.file.path, {
-            folder: 'discussions',
-         });
+         const bufferStream = streamifier.createReadStream(req.file.buffer); // Convert Buffer to ReadableStream
+         const uploadedImage = await uploadToCloudinary(bufferStream);
          image = uploadedImage.secure_url;
       }
 
@@ -46,9 +47,8 @@ export const updateDiscussion = async (req: Request, res: Response) => {
    // Check if req.file exists to decide whether to update 'image' field
    if (req.file) {
       try {
-         const uploadedImage = await cloudinary.uploader.upload(req.file.path, {
-            folder: 'discussions', // Optional folder in Cloudinary
-         });
+         const bufferStream = streamifier.createReadStream(req.file.buffer); // Convert Buffer to ReadableStream
+         const uploadedImage = await uploadToCloudinary(bufferStream);
          updates.image = uploadedImage.secure_url;
 
          // No need to delete the temporary file uploaded by multer on Vercel
@@ -67,6 +67,26 @@ export const updateDiscussion = async (req: Request, res: Response) => {
       res.status(500).json({ error: err });
    }
 };
+
+async function uploadToCloudinary(stream: NodeJS.ReadableStream): Promise<UploadApiResponse> {
+   return new Promise((resolve, reject) => {
+      const cloudStream = cloudinary.uploader.upload_stream({
+         folder: 'discussions', // Optional folder in Cloudinary
+      }, (error: any, result?: UploadApiResponse) => { // Specify result as optional
+         if (error) {
+            reject(error);
+         } else {
+            if (result) {
+               resolve(result);
+            } else {
+               reject(new Error('Upload result is undefined'));
+            }
+         }
+      });
+
+      stream.pipe(cloudStream);
+   });
+}
 
 export const deleteDiscussion = async (req: Request, res: Response) => {
    const { discussionId } = req.params;
